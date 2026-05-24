@@ -41,18 +41,29 @@ async function registerAccount(browser, email, demoButtonSelector) {
     await page.waitForSelector(SELECTORS.resultPara, { timeout: 40000 });
     await new Promise(r => setTimeout(r, 2000));
 
-    // Get the full text — looks like:
-    // "Account type: MT4.ECN. DemoNumber: 1035433Password: p$2FZ5N?)8,gK9&Currency: USD"
     const fullText = await page.$eval(SELECTORS.resultPara, el => el.innerText.trim());
     console.log(`[AUTO] Raw confirmation text: ${fullText}`);
 
-    // Extract login (DemoNumber)
-    const loginMatch = fullText.match(/DemoNumber[:\s]+(\d+)/i);
-    const login = loginMatch ? loginMatch[1] : 'NOT FOUND';
+    // Text comes in with line breaks like:
+    // Account type: MT4.ECN. Live
+    // Number: 29340
+    // Password: w-3R:&6S+f&p1-3
+    // Currency: USD
 
-    // Extract password (between "Password:" and "Currency:")
-    const passwordMatch = fullText.match(/Password[:\s]+(.+?)(?:Currency|$)/i);
-    const password = passwordMatch ? passwordMatch[1].trim() : 'NOT FOUND';
+    const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
+
+    let login = 'NOT FOUND';
+    let password = 'NOT FOUND';
+
+    for (const line of lines) {
+      if (line.toLowerCase().startsWith('number:')) {
+        login = line.split(':')[1].trim();
+      }
+      if (line.toLowerCase().startsWith('password:')) {
+        // Use split with limit to preserve colons in password
+        password = line.substring(line.indexOf(':') + 1).trim();
+      }
+    }
 
     console.log(`[AUTO] Parsed login=${login} password=${password}`);
     return { login, password };
