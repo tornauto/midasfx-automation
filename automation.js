@@ -11,11 +11,29 @@ const SELECTORS = {
   resultPara:   'body > section > section > div.text.text__18 > div:nth-child(4) > p'
 };
 
-async function registerAccount(browser, email, demoButtonSelector) {
-  const page = await browser.newPage();
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+function launchBrowser() {
+  return puppeteer.launch({
+    executablePath: CHROME_PATH,
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote',
+      '--single-process'
+    ]
+  });
+}
+
+async function registerAccount(email, demoButtonSelector) {
+  // Fresh browser every time — no cookies, no saved sessions
+  const browser = await launchBrowser();
 
   try {
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+
     await page.goto('https://my.midasfx.com/registration', {
       waitUntil: 'networkidle2',
       timeout: 60000
@@ -44,12 +62,6 @@ async function registerAccount(browser, email, demoButtonSelector) {
     const fullText = await page.$eval(SELECTORS.resultPara, el => el.innerText.trim());
     console.log(`[AUTO] Raw confirmation text: ${fullText}`);
 
-    // Text comes in with line breaks like:
-    // Account type: MT4.ECN. Live
-    // Number: 29340
-    // Password: w-3R:&6S+f&p1-3
-    // Currency: USD
-
     const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
 
     let login = 'NOT FOUND';
@@ -57,10 +69,9 @@ async function registerAccount(browser, email, demoButtonSelector) {
 
     for (const line of lines) {
       if (line.toLowerCase().startsWith('number:')) {
-        login = line.split(':')[1].trim();
+        login = line.substring(line.indexOf(':') + 1).trim();
       }
       if (line.toLowerCase().startsWith('password:')) {
-        // Use split with limit to preserve colons in password
         password = line.substring(line.indexOf(':') + 1).trim();
       }
     }
@@ -69,44 +80,26 @@ async function registerAccount(browser, email, demoButtonSelector) {
     return { login, password };
 
   } finally {
-    await page.close();
+    await browser.close(); // close completely after each registration
   }
 }
 
 async function runAutomation(firstName, lastName) {
-  const email = `${firstName}${lastName}@gmail.com`;
+  const email1 = `${firstName}${lastName}@gmail.com`;
+  const email2 = `${firstName}${lastName}D@gmail.com`; // D suffix for Demo2
 
-  console.log(`[CHROME] Using path: ${CHROME_PATH}`);
+  console.log(`[AUTO] Starting Demo1 for ${email1}`);
+  const demo1 = await registerAccount(email1, SELECTORS.demo1Btn);
+  console.log(`[AUTO] Demo1 done: login=${demo1.login} password=${demo1.password}`);
 
-  const browser = await puppeteer.launch({
-    executablePath: CHROME_PATH,
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--no-zygote',
-      '--single-process'
-    ]
-  });
+  // Wait between registrations
+  await new Promise(r => setTimeout(r, 5000));
 
-  try {
-    console.log(`[AUTO] Starting for ${email}`);
+  console.log(`[AUTO] Starting Demo2 for ${email2}`);
+  const demo2 = await registerAccount(email2, SELECTORS.demo2Btn);
+  console.log(`[AUTO] Demo2 done: login=${demo2.login} password=${demo2.password}`);
 
-    const demo1 = await registerAccount(browser, email, SELECTORS.demo1Btn);
-    console.log(`[AUTO] Demo1 done: login=${demo1.login} password=${demo1.password}`);
-
-    await new Promise(r => setTimeout(r, 5000));
-
-    const demo2 = await registerAccount(browser, email, SELECTORS.demo2Btn);
-    console.log(`[AUTO] Demo2 done: login=${demo2.login} password=${demo2.password}`);
-
-    return { email, demo1, demo2 };
-
-  } finally {
-    await browser.close();
-  }
+  return { email: email1, demo1, demo2 };
 }
 
 module.exports = { runAutomation };
