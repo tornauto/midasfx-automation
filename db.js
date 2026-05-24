@@ -6,6 +6,8 @@ const pool = new Pool({
 });
 
 async function init() {
+  // Drop old table and recreate with correct columns
+  await pool.query(`DROP TABLE IF EXISTS credentials`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS credentials (
       id SERIAL PRIMARY KEY,
