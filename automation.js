@@ -1,5 +1,4 @@
 const puppeteer = require('puppeteer-core');
-const chromium  = require('@sparticuz/chromium');
 
 const SELECTORS = {
   email:        '#RegistrationForm_email',
@@ -47,12 +46,18 @@ async function registerAccount(page, email, demoButtonSelector) {
 async function runAutomation(firstName, lastName) {
   const email = `${firstName}${lastName}@gmail.com`;
 
-  // This uses the bundled Chromium — no separate Chrome install needed
+  // Use system Chromium installed by nixpacks
   const browser = await puppeteer.launch({
-    args:            chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath:  await chromium.executablePath(),
-    headless:        chromium.headless
+    executablePath: '/run/current-system/sw/bin/chromium',
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote',
+      '--single-process'
+    ]
   });
 
   try {
