@@ -8,41 +8,58 @@ const SELECTORS = {
   demo2Btn:     '#account-type > div:nth-child(2) > span',
   checkbox:     '#registration-form > div.checkbox__container.success > label > span',
   submit:       '#form-submit',
-  loginText:    'body > section > section > div.text.text__18 > div:nth-child(4) > p',
-  passwordSpan: 'body > section > section > div.text.text__18 > div:nth-child(4) > p > span'
+  resultPara:   'body > section > section > div.text.text__18 > div:nth-child(4) > p'
 };
 
-async function registerAccount(page, email, demoButtonSelector) {
-  await page.goto('https://my.midasfx.com/registration', {
-    waitUntil: 'networkidle2',
-    timeout: 60000
-  });
+async function registerAccount(browser, email, demoButtonSelector) {
+  const page = await browser.newPage();
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
 
-  await page.waitForSelector(SELECTORS.email, { timeout: 15000 });
-  await page.click(SELECTORS.email);
-  await page.type(SELECTORS.email, email, { delay: 80 });
+  try {
+    await page.goto('https://my.midasfx.com/registration', {
+      waitUntil: 'networkidle2',
+      timeout: 60000
+    });
 
-  await page.waitForSelector(demoButtonSelector, { timeout: 15000 });
-  await page.click(demoButtonSelector);
-  await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 2000));
 
-  await page.waitForSelector(SELECTORS.checkbox, { timeout: 15000 });
-  await page.click(SELECTORS.checkbox);
-  await new Promise(r => setTimeout(r, 800));
+    await page.waitForSelector(SELECTORS.email, { timeout: 20000 });
+    await page.click(SELECTORS.email);
+    await page.type(SELECTORS.email, email, { delay: 80 });
 
-  await page.waitForSelector(SELECTORS.submit, { timeout: 15000 });
-  await page.click(SELECTORS.submit);
+    await page.waitForSelector(demoButtonSelector, { timeout: 20000 });
+    await page.click(demoButtonSelector);
+    await new Promise(r => setTimeout(r, 2000));
 
-  await page.waitForSelector(SELECTORS.loginText, { timeout: 30000 });
-  await new Promise(r => setTimeout(r, 2000));
+    await page.waitForSelector(SELECTORS.checkbox, { timeout: 20000 });
+    await page.click(SELECTORS.checkbox);
+    await new Promise(r => setTimeout(r, 1000));
 
-  const fullText = await page.$eval(SELECTORS.loginText, el => el.innerText.trim());
-  const password = await page.$eval(SELECTORS.passwordSpan, el => el.innerText.trim());
+    await page.waitForSelector(SELECTORS.submit, { timeout: 20000 });
+    await page.click(SELECTORS.submit);
 
-  const loginMatch = fullText.match(/\d{5,7}/);
-  const login = loginMatch ? loginMatch[0] : fullText.replace(password, '').trim();
+    await page.waitForSelector(SELECTORS.resultPara, { timeout: 40000 });
+    await new Promise(r => setTimeout(r, 2000));
 
-  return { login, password };
+    // Get the full text — looks like:
+    // "Account type: MT4.ECN. DemoNumber: 1035433Password: p$2FZ5N?)8,gK9&Currency: USD"
+    const fullText = await page.$eval(SELECTORS.resultPara, el => el.innerText.trim());
+    console.log(`[AUTO] Raw confirmation text: ${fullText}`);
+
+    // Extract login (DemoNumber)
+    const loginMatch = fullText.match(/DemoNumber[:\s]+(\d+)/i);
+    const login = loginMatch ? loginMatch[1] : 'NOT FOUND';
+
+    // Extract password (between "Password:" and "Currency:")
+    const passwordMatch = fullText.match(/Password[:\s]+(.+?)(?:Currency|$)/i);
+    const password = passwordMatch ? passwordMatch[1].trim() : 'NOT FOUND';
+
+    console.log(`[AUTO] Parsed login=${login} password=${password}`);
+    return { login, password };
+
+  } finally {
+    await page.close();
+  }
 }
 
 async function runAutomation(firstName, lastName) {
@@ -66,19 +83,13 @@ async function runAutomation(firstName, lastName) {
   try {
     console.log(`[AUTO] Starting for ${email}`);
 
-    const page1 = await browser.newPage();
-    await page1.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
-    const demo1 = await registerAccount(page1, email, SELECTORS.demo1Btn);
-    await page1.close();
-    console.log(`[AUTO] Demo1 done: login=${demo1.login}`);
+    const demo1 = await registerAccount(browser, email, SELECTORS.demo1Btn);
+    console.log(`[AUTO] Demo1 done: login=${demo1.login} password=${demo1.password}`);
 
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 5000));
 
-    const page2 = await browser.newPage();
-    await page2.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
-    const demo2 = await registerAccount(page2, email, SELECTORS.demo2Btn);
-    await page2.close();
-    console.log(`[AUTO] Demo2 done: login=${demo2.login}`);
+    const demo2 = await registerAccount(browser, email, SELECTORS.demo2Btn);
+    console.log(`[AUTO] Demo2 done: login=${demo2.login} password=${demo2.password}`);
 
     return { email, demo1, demo2 };
 
