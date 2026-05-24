@@ -10,30 +10,25 @@ async function init() {
     CREATE TABLE IF NOT EXISTS credentials (
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
-      demo1_login TEXT,
-      demo1_password TEXT,
-      demo2_login TEXT,
-      demo2_password TEXT,
+      login TEXT,
+      password TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
   console.log('[DB] Table ready');
 }
 
-async function saveCredentials(email, demo1Login, demo1Pass, demo2Login, demo2Pass) {
+async function saveCredentials(email, login, password) {
   await pool.query(
-    `INSERT INTO credentials (email, demo1_login, demo1_password, demo2_login, demo2_password)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (email) DO UPDATE
-     SET demo1_login=$2, demo1_password=$3, demo2_login=$4, demo2_password=$5`,
-    [email, demo1Login, demo1Pass, demo2Login, demo2Pass]
+    `INSERT INTO credentials (email, login, password)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (email) DO UPDATE SET login=$2, password=$3`,
+    [email, login, password]
   );
 }
 
 async function getCredentials(email) {
-  const res = await pool.query(
-    `SELECT * FROM credentials WHERE email = $1`, [email]
-  );
+  const res = await pool.query(`SELECT * FROM credentials WHERE email = $1`, [email]);
   return res.rows[0] || null;
 }
 
