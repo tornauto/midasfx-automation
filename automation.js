@@ -1,4 +1,32 @@
 const puppeteer = require('puppeteer-core');
+const { execSync } = require('child_process');
+
+// Auto-find Chromium wherever Railway installed it
+function findChrome() {
+  const paths = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/nix/var/nix/profiles/default/bin/chromium',
+    '/run/current-system/sw/bin/chromium'
+  ];
+  for (const p of paths) {
+    try {
+      execSync(`test -f ${p}`);
+      console.log(`[CHROME] Found at ${p}`);
+      return p;
+    } catch {}
+  }
+  // Last resort: ask the system
+  try {
+    const found = execSync('which chromium || which chromium-browser || which google-chrome')
+      .toString().trim().split('\n')[0];
+    console.log(`[CHROME] Found via which: ${found}`);
+    return found;
+  } catch {}
+  throw new Error('Chrome not found! Check Railway build logs.');
+}
 
 const SELECTORS = {
   email:        '#RegistrationForm_email',
@@ -45,10 +73,10 @@ async function registerAccount(page, email, demoButtonSelector) {
 
 async function runAutomation(firstName, lastName) {
   const email = `${firstName}${lastName}@gmail.com`;
+  const chromePath = findChrome();
 
-  // Use system Chromium installed by nixpacks
   const browser = await puppeteer.launch({
-    executablePath: '/run/current-system/sw/bin/chromium',
+    executablePath: chromePath,
     headless: true,
     args: [
       '--no-sandbox',
