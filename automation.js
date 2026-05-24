@@ -11,27 +11,42 @@ const SELECTORS = {
   resultPara:   'body > section > section > div.text.text__18 > div:nth-child(4) > p'
 };
 
-function launchBrowser() {
+function launchBrowser(useProxy = false) {
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--no-zygote',
+    '--single-process'
+  ];
+
+  // If proxy credentials are set in Railway env vars, use them for Demo2
+  if (useProxy && process.env.PROXY_SERVER) {
+    args.push(`--proxy-server=${process.env.PROXY_SERVER}`);
+  }
+
   return puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--no-zygote',
-      '--single-process'
-    ]
+    args
   });
 }
 
-async function registerAccount(email, demoButtonSelector) {
-  // Fresh browser every time — no cookies, no saved sessions
-  const browser = await launchBrowser();
+async function registerAccount(email, demoButtonSelector, useProxy = false) {
+  const browser = await launchBrowser(useProxy);
 
   try {
     const page = await browser.newPage();
+
+    // Authenticate proxy if credentials provided
+    if (useProxy && process.env.PROXY_USER && process.env.PROXY_PASS) {
+      await page.authenticate({
+        username: process.env.PROXY_USER,
+        password: process.env.PROXY_PASS
+      });
+    }
+
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
 
     await page.goto('https://my.midasfx.com/registration', {
@@ -63,7 +78,6 @@ async function registerAccount(email, demoButtonSelector) {
     console.log(`[AUTO] Raw confirmation text: ${fullText}`);
 
     const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
-
     let login = 'NOT FOUND';
     let password = 'NOT FOUND';
 
@@ -80,23 +94,24 @@ async function registerAccount(email, demoButtonSelector) {
     return { login, password };
 
   } finally {
-    await browser.close(); // close completely after each registration
+    await browser.close();
   }
 }
 
 async function runAutomation(firstName, lastName) {
   const email1 = `${firstName}${lastName}@gmail.com`;
-  const email2 = `${firstName}${lastName}D@gmail.com`; // D suffix for Demo2
+  const email2 = `${firstName}${lastName}D@gmail.com`;
 
   console.log(`[AUTO] Starting Demo1 for ${email1}`);
-  const demo1 = await registerAccount(email1, SELECTORS.demo1Btn);
+  const demo1 = await registerAccount(email1, SELECTORS.demo1Btn, false);
   console.log(`[AUTO] Demo1 done: login=${demo1.login} password=${demo1.password}`);
 
-  // Wait between registrations
-  await new Promise(r => setTimeout(r, 5000));
+  // Wait 15 seconds between registrations
+  console.log(`[AUTO] Waiting 15s before Demo2...`);
+  await new Promise(r => setTimeout(r, 15000));
 
   console.log(`[AUTO] Starting Demo2 for ${email2}`);
-  const demo2 = await registerAccount(email2, SELECTORS.demo2Btn);
+  const demo2 = await registerAccount(email2, SELECTORS.demo2Btn, true); // uses proxy if set
   console.log(`[AUTO] Demo2 done: login=${demo2.login} password=${demo2.password}`);
 
   return { email: email1, demo1, demo2 };
